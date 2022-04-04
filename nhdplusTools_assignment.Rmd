@@ -15,13 +15,17 @@ knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 
 The goal of this assignment is to introduce you to the package `nhdplusTools`. This package allows R users to explore and manipulate the [National Hydrography Dataset (NHD)](https://www.usgs.gov/national-hydrography/national-hydrography-dataset). The NHD is a digital database that represents the United States' water drainage network. Essentially, the database is made up of stream features called flowlines, waterbody polygons (aptly named waterbodies), hydrologically-connected 'chunks' of watersheds called hydrologic unit codes (HUCs, more on that later), and even smaller watershed 'chunks' called catchments. For every flowline, there is a catchment associated with it that represents the drainage area that contributes to its surface flow. Flowlines and catchments can be linked up using each flowline's unique *comid* and each catchment's unique *featureid*, which are the same value for related flowlines and catchments. (For whatever reason, they aren't called the same thing in the catchment dataset.) Waterbodies can also be linked to the catchment that they are within using its associated *comid*.
 
+```
 ![Example of flowlines and catchments.](pics/watershed.jpg)
+```
 
 # HUCs
 
 Watersheds are delineated by the USGS using a nested coding system. The highest order, HUC-2 (e.g. '01'), divides the US into 21 large watersheds, which are then further divided into HUC-4 units (e.g., '0102', '0103'), which are then divided into HUC-6 units, etc. etc. It is important to remember that not all HUCs are true watersheds!  
 
+```
 ![Schematic of HUC units, taken from the USGS, https://nas.er.usgs.gov/hucs.aspx.](pics/hucs.jpg)
+```
 
 To demonstrate some of the functions included in the `nhdplusTools` package, we will be exploring Virginia's North Fork (NF) of the Shenandoah River's watershed, which is fully represented within the "02070006" HUC-8.
 
@@ -74,7 +78,7 @@ NHD flowlines contain a wide range of underlying variable data like watershed ar
 nofo_flowlines %>%
     kable(.,'html',caption='NHD Metadata') %>%
     kable_styling() %>%
-    scroll_box(width='900px',height='400px')
+    scroll_box()  # width='600px',height='500px'
 ```
 
 ## Finding USGS gages with `get_nwis`
@@ -135,7 +139,7 @@ We now have a field in our gage data table that tells us how far upstream each g
 gages %>%
     kable(.,'html',caption='Gage Information') %>%
     kable_styling() %>%
-    scroll_box(width='900px',height='400px')
+    scroll_box() # width='600px',height='500px'
 ```
 
 ## Delineating watersheds with `get_UT()`
