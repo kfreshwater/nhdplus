@@ -1,13 +1,13 @@
 ---
 title: "nhdplusTools"
-author: "Brandon Budnicki"
-date: "4/4/2022"
+author: "Keian Freshwater"
+date: "4/10/2022"
 output: html_document
 editor_options: 
   chunk_output_type: console
 ---
 
-```{r}
+```{r,include=F}
 knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 ```
 
@@ -15,17 +15,9 @@ knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 
 The goal of this assignment is to introduce you to the package `nhdplusTools`. This package allows R users to explore and manipulate the [National Hydrography Dataset (NHD)](https://www.usgs.gov/national-hydrography/national-hydrography-dataset). The NHD is a digital database that represents the United States' water drainage network. Essentially, the database is made up of stream features called flowlines, waterbody polygons (aptly named waterbodies), hydrologically-connected 'chunks' of watersheds called hydrologic unit codes (HUCs, more on that later), and even smaller watershed 'chunks' called catchments. For every flowline, there is a catchment associated with it that represents the drainage area that contributes to its surface flow. Flowlines and catchments can be linked up using each flowline's unique *comid* and each catchment's unique *featureid*, which are the same value for related flowlines and catchments. (For whatever reason, they aren't called the same thing in the catchment dataset.) Waterbodies can also be linked to the catchment that they are within using its associated *comid*.
 
-```
-![Example of flowlines and catchments.](pics/watershed.jpg)
-```
-
 # HUCs
 
 Watersheds are delineated by the USGS using a nested coding system. The highest order, HUC-2 (e.g. '01'), divides the US into 21 large watersheds, which are then further divided into HUC-4 units (e.g., '0102', '0103'), which are then divided into HUC-6 units, etc. etc. It is important to remember that not all HUCs are true watersheds!  
-
-```
-![Schematic of HUC units, taken from the USGS, https://nas.er.usgs.gov/hucs.aspx.](pics/hucs.jpg)
-```
 
 To demonstrate some of the functions included in the `nhdplusTools` package, we will be exploring Virginia's North Fork (NF) of the Shenandoah River's watershed, which is fully represented within the "02070006" HUC-8.
 
@@ -78,7 +70,7 @@ NHD flowlines contain a wide range of underlying variable data like watershed ar
 nofo_flowlines %>%
     kable(.,'html',caption='NHD Metadata') %>%
     kable_styling() %>%
-    scroll_box()  # width='600px',height='500px'
+    scroll_box(width='900px',height='400px')
 ```
 
 ## Finding USGS gages with `get_nwis`
@@ -139,7 +131,7 @@ We now have a field in our gage data table that tells us how far upstream each g
 gages %>%
     kable(.,'html',caption='Gage Information') %>%
     kable_styling() %>%
-    scroll_box() # width='600px',height='500px'
+    scroll_box(width='900px',height='400px')
 ```
 
 ## Delineating watersheds with `get_UT()`
@@ -225,37 +217,153 @@ Say we are interested in identifying which gages monitor the NF directly (i.e., 
 
 ```{r}
 
+#gathering data from the mainstem
+UM_comids <- get_UM(network=nofo_flowlines, comid=8441255) %>%
+  as.tibble() %>%
+  rename(comid=value)
+
+UM_comids$type = 'Main'
+
+#gathering data from the tributaries
+UT_comids <- get_UT(network=nofo_flowlines, comid=8441255) %>%
+  as.tibble() %>%
+  rename(comid=value)
+         
+UT_comids$type = 'Tributary'
+
+#filter out duplicates
+UT_comids_filter <- UT_comids %>% filter(!comid %in% UM_comids$comid)
+                                        
+
+#combining both mainframes
+nofo_comids_M_T <- rbind(UT_comids_filter,UM_comids)
+
+#combine to (almost) final table
+M_T_gauges <- right_join(gages,nofo_comids_M_T, by="comid")
+
+#delete n/a values
+M_T_gauges_final <- M_T_gauges[!is.na(M_T_gauges$site_type),]
+
+#convert to Kable
+M_T_gauges_final %>%
+    kable(.,'html',caption='Gage Information') %>%
+    kable_styling() %>%
+    scroll_box(width='900px',height='400px')
 ```
 
 #### **Question 2a:**
 
-Find the distance between the "N F SHENANDOAH RIVER AT COOTES STORE, VA" and "N F SHENANDOAH RIVER NEAR STRASBURG, VA" gages using `get_pathlength()`. Then, map the flowlines between the two gages using `mapview()`.
+Find the distance between the "N F SHENANDOAH RIVER AT COOTES STORE, VA" and "N F SHENANDOAH RIVER NEAR STRASBURG, VA" gages using `get_pathlength()`.
 
 ```{r}
+#get data for strasburg and cootes
+comid_strasburg <- filter(gages,station_nm == "N F SHENANDOAH RIVER NEAR STRASBURG, VA")
+comid_cootes <- filter(gages,station_nm == "N F SHENANDOAH RIVER AT COOTES STORE, VA")
 
+#getting the upstream value
+strasburg_cootes_UT <- get_UT(network=nofo_flowlines, comid=comid_strasburg$comid ) %>%
+  as.tibble() %>%
+  rename(comid=value)
+
+#getting flowlines
+strasburg_cootes_flowlines <- filter(nofo_flowlines, comid %in% c(strasburg_cootes_UT$comid))
+
+#flowlines for pathlines
+strasburg_cootes_flowlines_for_pathlines <- get_tocomid(strasburg_cootes_flowlines, add=TRUE) %>%
+  rename(ID=comid, toID=tocomid) 
+
+#flowlines fo pathlines
+strasburg_cootes_distances <- get_pathlength(strasburg_cootes_flowlines_for_pathlines) %>% 
+  rename(comid=ID,
+         distance_km=pathlength)
+
+#filter distances for cootes
+strasburg_cootes_distances_filter <- strasburg_cootes_distances %>%
+  filter(comid == comid_cootes$comid)
+
+#distance downstream
+distance_downstream_2a = strasburg_cootes_distances_filter$distance_km
 ```
 
+The distance between the "N F SHENANDOAH RIVER AT COOTES STORE, VA" and "N F SHENANDOAH RIVER NEAR STRASBURG, VA" gages using is `r distance_downstream_2a` km.
+      
 #### **Question 2b:**
 
-Now, find the distance between the "N F SHENANDOAH RIVER AT COOTES STORE, VA" and "N F SHENANDOAH RIVER NEAR STRASBURG, VA" gages using the suite of `get_UT()`, `get_DM()`, etc. functions. Like Question 2, map the flowlines between the two gages using `mapview()`. **HINT:** remember that flowlines have lots of geospatial information contained in the data table!
+Now, find the distance between the "N F SHENANDOAH RIVER AT COOTES STORE, VA" and "N F SHENANDOAH RIVER NEAR STRASBURG, VA" gages using the suite of `get_UT()`, `get_DM()`, etc. functions. **HINT:** remember that flowlines have lots of geospatial information contained in the data table!
 
 ```{r}
+#get data for strasburg and cootes
+comid_strasburg <- filter(gages,station_nm == "N F SHENANDOAH RIVER NEAR STRASBURG, VA")
+comid_cootes <- filter(gages,station_nm == "N F SHENANDOAH RIVER AT COOTES STORE, VA")
 
+#getting the upstream value
+strasburg_cootes_UT <- get_UT(network=nofo_flowlines, comid=comid_strasburg$comid ) %>%
+  as.tibble() %>%
+  rename(comid=value)
+
+#getting the downstream value
+strasburg_cootes_DM <- get_DM(network=nofo_flowlines, comid=comid_cootes$comid ) %>%
+  as.tibble() %>%
+  rename(comid=value)
+
+UT_DM <- inner_join(strasburg_cootes_UT, strasburg_cootes_DM, by="comid")
+
+UT_DM_table <- UT_DM %>%
+  left_join(nofo_flowlines,by="comid") %>%
+  distinct(comid, .keep_all=T) %>%
+  filter(!comid %in% comid_cootes$comid)
+
+distance_downstream_2b = sum(UT_DM_table$lengthkm)
 ```
+
+The distance between the "N F SHENANDOAH RIVER AT COOTES STORE, VA" and "N F SHENANDOAH RIVER NEAR STRASBURG, VA" gages using is `r distance_downstream_2b` km.
 
 #### **Question 2c:**
 
 Are the two distances from 2a and 2b the the same? If not, why do you think they might be different?
 
 ```{r}
-
+#no coding required
 ```
 
+The two distances from 2a and 2b are both the same! Both distances = `r distance_downstream_2b` km.
+  
 #### **Question 3:**
 
 Select one of the following HUC-8s and develop a table of gages within the watershed that includes their distances upstream of the HUC-8 outlet, the stream order they are located on, and their watershed area.
 
 Upper Oconnee River, GA (03070101); Concord River, MA (01070005); St. Vrain River, CO (10190005); or Crowley Lake, CA (18090102)
+
+```{r}
+#St. Vrain River
+
+# HUC-8 of interest
+stvrain_watershed <- get_huc8(id='10190005')
+
+# Pull NHD features within our selected HUC-8 (i.e., our area of interest)
+stvrain_flowlines <- get_nhdplus(AOI = stvrain_watershed, 
+                         realization='flowline') 
+
+#pull and filter catchments in area of interest
+stvrain_catchments <- get_nhdplus(AOI=stvrain_watershed, 
+                          realization='catchment') %>% 
+ filter(featureid %in% stvrain_flowlines$comid) 
+
+#get waterbodies
+stvrain_waterbodies <- get_waterbodies(AOI=stvrain_watershed)
+```
+```{r}
+#get watershed gauges
+gages_stvrain <- get_nwis(AOI=stvrain_watershed)
+
+#filter within AOI
+gages_stvrain <- gages_stvrain %>%
+ filter(st_intersects(., stvrain_watershed, sparse = FALSE))
+```
+```{r}
+#map the St. Vrain watershed
+mapview(stvrain_catchments, col.regions="purple") + mapview(stvrain_flowlines) + mapview(stvrain_waterbodies, col.regions="darkblue") + mapview(gages_stvrain, col.regions="red")
+```
 
 ```{r}
 
@@ -265,3 +373,6 @@ Upper Oconnee River, GA (03070101); Concord River, MA (01070005); St. Vrain Rive
 
 Peruse the list of functions in the `nhdplusTools` package index, and try to use one we haven't utilized yet within your watershed from Question 3.  
 
+```{r}
+
+```
