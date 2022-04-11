@@ -388,11 +388,6 @@ gages_stvrain_distances <- left_join(gages_stvrain,distances_stvrain,by='comid')
 ```
 
 ```{r}
-#distance upstream per gauge
-gages_stvrain_distances <- left_join(gages_stvrain, distances_stvrain, by='comid')
-```
-
-```{r}
 #stream order
 
 #extract streamorder data from flowlines
