@@ -365,8 +365,70 @@ gages_stvrain <- gages_stvrain %>%
 mapview(stvrain_catchments, col.regions="purple") + mapview(stvrain_flowlines) + mapview(stvrain_waterbodies, col.regions="darkblue") + mapview(gages_stvrain, col.regions="red")
 ```
 
-```{r}
+```{r,message=F,warning=F}
+#for every gage, a comid column is created
+for(i in 1:nrow(gages_stvrain)){
+  gages_stvrain$comid[i] <- discover_nhdplus_id(gages_stvrain[i,])}
+```
 
+```{r}
+#distances
+
+#get pathlengths
+flowlines_for_pathlengths_stvrain <- get_tocomid(stvrain_flowlines, add=TRUE) %>%
+  rename(ID=comid, toID=tocomid) 
+
+#get distances
+distances_stvrain <- get_pathlength(flowlines_for_pathlengths_stvrain) %>% 
+  rename(comid=ID,
+         distance_km=pathlength)
+
+#distance upstream per gauge
+gages_stvrain_distances <- left_join(gages_stvrain,distances_stvrain,by='comid')
+```
+
+```{r}
+#distance upstream per gauge
+gages_stvrain_distances <- left_join(gages_stvrain, distances_stvrain, by='comid')
+```
+
+```{r}
+#stream order
+
+#extract streamorder data from flowlines
+stvrain_streamorder_sf <- stvrain_flowlines %>%
+  select(comid=comid,
+         stream_order=streamorde)
+
+#convert to data frame
+stvrain_streamorder <- st_drop_geometry(stvrain_streamorder_sf) 
+
+#add stream orders to existing dataframe
+gages_stvrain_streamorder <- left_join(gages_stvrain_distances,stvrain_streamorder,by='comid')
+```
+
+```{r}
+#catchment area
+
+#extract areas data from catchments
+stvrain_area_sf <- stvrain_catchments %>%
+  select(comid=featureid,
+         area_sq_km=areasqkm)
+
+#convert to data frame
+stvrain_area <- st_drop_geometry(stvrain_area_sf) 
+
+#add area to existing dataframe
+gages_stvrain_final <- left_join(gages_stvrain_streamorder,stvrain_area,by='comid')
+```
+
+
+```{r}
+#kable with  distances upstream of HUC-8 outlet, stream order, and watershed area
+gages_stvrain_final %>%
+    kable(.,'html',caption='Gage Information') %>%
+    kable_styling() %>%
+    scroll_box(width='900px',height='400px')
 ```
 
 #### **Question 4:**
@@ -374,5 +436,10 @@ mapview(stvrain_catchments, col.regions="purple") + mapview(stvrain_flowlines) +
 Peruse the list of functions in the `nhdplusTools` package index, and try to use one we haven't utilized yet within your watershed from Question 3.  
 
 ```{r}
+#Use nhd area function to get the total area of the St. Vrain Watershed
+stvrain_watershed_area <- get_nhdarea(stvrain_watershed)
 
+stvrain_total_area <- stvrain_watershed_area$areasqkm
 ```
+
+The total catchment area of the St.Vrain watershed is `r stvrain_total_area` square km.
